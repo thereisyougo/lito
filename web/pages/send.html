@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>SendMsg</title>
+    <link rel="stylesheet" href="">
+    <style>
+        * {
+            font-size: 1rem;
+        }
+        #type, input[type=submit] {
+            vertical-align: top;
+            padding: .2rem;
+        }
+        label {
+            display: inline-block;
+            width: 7rem;
+        }
+        #info {
+            margin-bottom: .2rem;
+        }
+    </style>
+    <script type="text/javascript">
+        function sendmsg(self, evt) {
+            fetch('/send', {
+                method: 'POST',
+                body: new FormData(document.myform),
+                cache: "no-cache"
+            }).then(b => b.json()).then(r => {
+                if (r.success) {
+                    alert('message has been sended.');
+                    document.myform.codes.value = '';
+                }
+            });
+        }
+        window.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('btnSend').addEventListener('click', sendmsg)
+        });
+        window.addEventListener('beforeunload', function () {
+            document.getElementById('btnSend').removeEventListener('click', sendmsg);
+        });
+    </script>
+</head>
+<body>
+<form action="/send" name="myform" method="post">
+    <div id="info">
+        <label for="username">username:</label><input type="text" name="username" id="username" value="{{.Username}}"><br>
+        <label for="password">password:</label><input type="password" name="password" id="password" value="{{.Password}}"><br>
+        <label for="host">host:</label><input type="text" name="host" id="host" value="{{.Host}}"><br>
+        <label for="port">port:</label><input type="text" name="port" id="port" value="{{.Port}}"><br>
+        <label for="virtual_host">virtual_host:</label><input type="text" name="virtual_host" id="virtual_host" value="{{.VirtualHost}}"><br>
+        <label for="exchange_name">exchange_name:</label><input type="text" name="exchange_name" id="exchange_name" value="{{.ExchangeName}}">
+        <label for="exchange_name">route_key:</label><input type="text" name="route_key" id="route_key" value="{{.RouteKey}}">
+    </div>
+
+    <textarea name="codes" id="codes" cols="30" rows="20"></textarea>
+    <select name="type" id="type">
+        <option value="apply">apply</option>
+        <option value="transaction">transaction</option>
+        <option value="adjust">adjust</option>
+    </select>
+    <input type="button" id="btnSend" value="提交">
+</form>
+</body>
+</html>

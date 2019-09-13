@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>上传文件</title>
+</head>
+<body>
+<div><a href="./exec">执行</a></div>
+<div><a href="./files">文件列表</a></div>
+<form enctype="multipart/form-data" action="/upload" name="uploadForm" method="post">
+    <input type="file" name="uploadfile" multiple="multiple">
+    <div class="preview"><p></p><p></p></div>
+    <input type="hidden" name="token" value="{{.}}">
+    <input type="button" id="submit" value="提交">
+</form>
+</body>
+</html>
+<script type="text/javascript">
+    function returnFileSize(number) {
+        if(number < 1024) {
+            return number + 'bytes';
+        } else if(number > 1024 && number < 1048576) {
+            return (number/1024).toFixed(1) + 'KB';
+        } else if(number > 1048576) {
+            return (number/1048576).toFixed(1) + 'MB';
+        }
+    }
+
+    var input = document.querySelector('input');
+    var preview = document.querySelector('.preview');
+    function updateImageDisplay() {
+        var curFiles = input.files;
+        if(curFiles.length === 0) {
+            preview.firstChild.innerHTML = 'No files currently selected for upload';
+        } else {
+            preview.firstChild.innerHTML = 'File Size: ' + returnFileSize(Array.prototype.slice.call(curFiles,0).reduce(function(accu, curr) { return accu + curr.size; }, 0));
+        }
+        preview.lastChild.innerHTML = '';
+    }
+    var lastBytes = 0;
+    function updateProgress (oEvent) {
+        if (oEvent.lengthComputable) {
+            var rate = returnFileSize(oEvent.loaded - lastBytes) + "/s";
+            lastBytes = oEvent.loaded;
+            //console.info(oEvent.loaded, oEvent.total);
+            //console.info(Date.now());
+            var percentComplete = (oEvent.loaded / oEvent.total * 100).toFixed(0);
+            preview.lastChild.innerHTML = percentComplete + '%' + "    " + rate;
+        } else {
+            // Unable to compute progress information since the total size is unknown
+        }
+    }
+
+    function transferComplete(evt) {
+        console.log("The transfer is complete.");
+        preview.lastChild.innerHTML = "complete";
+        setTimeout(function() {
+            location.reload();
+        }, 500);
+    }
+
+    function transferFailed(evt) {
+        console.log("An error occurred while transferring the file.");
+    }
+    function startUploading() {
+        var xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', updateProgress);
+        xhr.upload.addEventListener('load', transferComplete);
+        xhr.upload.addEventListener('error', transferFailed);
+
+        xhr.open('post', '/upload');
+        xhr.send(new FormData(document.uploadForm));
+    }
+
+    input.addEventListener('change', updateImageDisplay);
+    document.querySelector('#submit').addEventListener('click', startUploading);
+</script>

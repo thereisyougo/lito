@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Executor</title>
+</head>
+<body>
+<div><a href="./upload">执行</a></div>
+<form action="/exec" name="myform" method="post">
+    <input type="submit" value="提交"><br>
+    <textarea name="content" cols="120" rows="7">{{.Content}}</textarea>
+    <textarea name="result" cols="120" rows="17">{{.Result}}</textarea>
+</form>
+</body>
+</html>

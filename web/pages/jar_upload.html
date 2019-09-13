@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JAR UPLOAD</title>
+    <style>
+        * {
+            font-size: 1rem;
+        }
+
+        label {
+            display: inline-block;
+            width: 9rem;
+        }
+    </style>
+    <script type="text/javascript">
+        function sendmsg(self, evt) {
+            fetch('/jar', {
+                method: 'POST',
+                body: new FormData(document.myform),
+                cache: "no-cache"
+            }).then(b => b.text()).then(r => {
+                alert("msg from server:" + r)
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('btnSend').addEventListener('click', sendmsg)
+        });
+        window.addEventListener('beforeunload', function () {
+            document.getElementById('btnSend').removeEventListener('click', sendmsg);
+        });
+    </script>
+</head>
+<body>
+<div id="info">
+    <form name="myform">
+        <label for="LocalRepoDir">本地仓库地址:</label><input type="text" value="{{.LocalRepoDir}}" name="LocalRepoDir"><br>
+        <label for="MavenServerHost">私服地址及端口:</label><input type="text" value="{{.MavenServerHost}}" name="MavenServerHost"><br>
+        <label for="RepoName">私服上的仓库名:</label><input type="text" value="{{.RepoName}}" name="RepoName"><br>
+        <label for="Username">用户名:</label><input type="text" value="{{.Username}}" name="Username"><br>
+        <label for="Secret">密码:</label><input type="password" value="{{.Secret}}" name="Secret"><br>
+    </form>
+</div>
+<button id="btnSend">执行</button>
+</body>
+</html>
