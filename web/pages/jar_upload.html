@@ -13,24 +13,10 @@
             width: 9rem;
         }
     </style>
-    <script type="text/javascript">
-        function sendmsg(self, evt) {
-            fetch('/jar', {
-                method: 'POST',
-                body: new FormData(document.myform),
-                cache: "no-cache"
-            }).then(b => b.text()).then(r => {
-                alert("msg from server:" + r)
-            });
-        }
-
-        window.addEventListener('DOMContentLoaded', function () {
-            document.getElementById('btnSend').addEventListener('click', sendmsg)
-        });
-        window.addEventListener('beforeunload', function () {
-            document.getElementById('btnSend').removeEventListener('click', sendmsg);
-        });
+    <script>
+        var req_host = '{{.ReqHost}}';
     </script>
+    <script type="text/javascript" src="files/web/pages/app/jar_upload.js"></script>
 </head>
 <body>
 <div id="info">

@@ -40,7 +40,8 @@ type SearchItem struct {
 }
 
 type MavenConfig struct {
-	LocalRepoDir, MavenServerHost, RepoName, Username, Secret string
+	LocalRepoDir, MavenServerHost, RepoName, Username, Secret, ReqHost string
+	Msgch                                                              *chan string
 }
 
 func (cfg *MavenConfig) execJarUpload() {
@@ -88,7 +89,7 @@ func (cfg *MavenConfig) execJarUpload() {
 		return nil
 	})
 
-	fmt.Print("count: ", count)
+	*cfg.Msgch <- fmt.Sprint("count: ", count)
 }
 
 const (
@@ -133,14 +134,18 @@ func (cfg *MavenConfig) request(g, a, v, jarPath string) {
 	response, e := http.DefaultClient.Do(req)
 	defer response.Body.Close()
 	failOnError(e, "http request failed")
-	response.Write(os.Stdout)
+	//response.Write(os.Stdout)
+	buf := &bytes.Buffer{}
+	e = response.Write(buf)
+	failOnError(e, "delete response write failed")
+	*cfg.Msgch <- buf.String()
 }
 
 func (cfg *MavenConfig) removeComponent(groupid, artifactid, version string) {
 	searchUrl := parseStr(searchUrlStrTmp, &map[string]string{
-		"g": groupid,
-		"a": artifactid,
-		"v": version,
+		"g":    groupid,
+		"a":    artifactid,
+		"v":    version,
 		"repo": cfg.RepoName,
 		"addr": cfg.MavenServerHost,
 	})
@@ -159,25 +164,30 @@ func (cfg *MavenConfig) removeComponent(groupid, artifactid, version string) {
 	failOnError(e, "search response read failed")
 	if len(searchResult.Items) > 0 && len(searchResult.Items[0].Id) > 0 {
 		deleteUrl := parseStr(deleteUrlStrTmp, &map[string]string{
-			"id": searchResult.Items[0].Id,
+			"id":   searchResult.Items[0].Id,
 			"addr": cfg.MavenServerHost,
 		})
 		delRequest, e := http.NewRequest("DELETE", deleteUrl, nil)
 		failOnError(e, "construct delete url failed")
 		delRequest.SetBasicAuth(cfg.Username, cfg.Secret)
-		delResposne, e := http.DefaultClient.Do(delRequest)
-		if delResposne == nil {
+		delResponse, e := http.DefaultClient.Do(delRequest)
+		if delResponse == nil {
 			return
 		}
-		defer delResposne.Body.Close()
+		defer delResponse.Body.Close()
 		failOnError(e, "delete request back failed")
-		os.Stdout.WriteString("DELETE COMPONENT...\n")
-		delResposne.Write(os.Stdout)
+		//os.Stdout.WriteString("DELETE COMPONENT...\n")
+		//delResponse.Write(os.Stdout)
+		*cfg.Msgch <- "DELETE COMPONENT..."
+		buf := &bytes.Buffer{}
+		e = delResponse.Write(buf)
+		failOnError(e, "delete response write failed")
+		*cfg.Msgch <- buf.String()
 
-		/*deleteResopnseBuf, e := ioutil.ReadAll(delResposne.Body)
+		/*deleteResopnseBuf, e := ioutil.ReadAll(delResponse.Body)
 		failOnError(e, "read delete back failed")
-		fmt.Println(delResposne.StatusCode)
-		fmt.Println(delResposne.Header)
+		fmt.Println(delResponse.StatusCode)
+		fmt.Println(delResponse.Header)
 		fmt.Println(string(deleteResopnseBuf))*/
 	}
 }
@@ -234,7 +244,7 @@ func (cfg *MavenConfig) uploadSource(jarPath string, writer *multipart.Writer) {
 	}
 }
 
-func jarConfigWelcome(w http.ResponseWriter, r *http.Request, data *MavenConfig)  {
+func jarConfigWelcome(w http.ResponseWriter, r *http.Request, data *MavenConfig) {
 	if tmp, e := template.ParseFiles("web/pages/jar_upload.html"); e == nil {
 		e := tmp.Execute(w, data)
 		FailOnError(e, "template render error")
@@ -243,13 +253,14 @@ func jarConfigWelcome(w http.ResponseWriter, r *http.Request, data *MavenConfig)
 	}
 }
 
-func jarHandler(w http.ResponseWriter, r *http.Request)  {
+func jarHandler(w http.ResponseWriter, r *http.Request, msgch *chan string) {
 	mvnCfg := &MavenConfig{
 		LocalRepoDir:    r.PostFormValue("LocalRepoDir"),
 		MavenServerHost: r.PostFormValue("MavenServerHost"),
 		RepoName:        r.PostFormValue("RepoName"),
 		Username:        r.PostFormValue("Username"),
 		Secret:          r.PostFormValue("Secret"),
+		Msgch:           msgch,
 	}
 	targetDir := mvnCfg.LocalRepoDir
 	fileInfo, e := os.Stat(targetDir)
@@ -262,7 +273,7 @@ func jarHandler(w http.ResponseWriter, r *http.Request)  {
 	go mvnCfg.execJarUpload()
 }
 
-func UploadJarHanler() http.HandlerFunc {
+func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method := r.Method
 		log.Println(method)
@@ -274,10 +285,11 @@ func UploadJarHanler() http.HandlerFunc {
 				RepoName:        "maven-releases",
 				Username:        "admin",
 				Secret:          "admin123",
+				ReqHost:         r.Host,
 			}
 			jarConfigWelcome(w, r, data)
 		case "POST":
-			jarHandler(w, r)
+			jarHandler(w, r, msgch)
 		}
 	});
 }
