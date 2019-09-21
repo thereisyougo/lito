@@ -8,7 +8,7 @@ import (
 
 var upgrader = websocket.Upgrader{}
 
-func WsHandler(msgch chan string) (func(w http.ResponseWriter, r *http.Request)) {
+func WsHandler(msgch chan string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {

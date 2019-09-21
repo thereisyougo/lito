@@ -2,6 +2,8 @@ package web
 
 import (
 	"bytes"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -15,6 +17,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unsafe"
 )
 
 type PomPoint struct {
@@ -44,6 +47,45 @@ type MavenConfig struct {
 	Msgch                                                              *chan string
 }
 
+func verify(fileName string) bool  {
+	var sha1Msg string
+	//fileName := "D:/.m2/repository/org/springframework/batch/spring-batch-core/3.0.10.RELEASE/spring-batch-core-3.0.10.RELEASE.jar"
+	fh, e := os.Open(fileName)
+	if e != nil {
+		log.Println(e)
+		return false
+	}
+	defer fh.Close()
+	jarSha1FileName := fileName + ".sha1"
+	if _, e = os.Stat(jarSha1FileName); e == nil {
+		fh1, e := os.Open(jarSha1FileName)
+		if e != nil {
+			log.Println(e)
+			return false
+		}
+		defer fh1.Close()
+		buf, e := ioutil.ReadAll(fh1)
+		if e != nil {
+			log.Println(e)
+			return false
+		}
+		sha1Msg = *(*string)(unsafe.Pointer(&buf))
+		sha1Msg = strings.TrimSpace(sha1Msg)
+	} else {
+		fmt.Println(fileName, "不存在sha1文件")
+		return true
+	}
+	hash := sha1.New()
+	_, e = io.Copy(hash, fh)
+	if e != nil {
+		log.Println(e)
+		return false
+	}
+	sum := hash.Sum(nil)
+	s := hex.EncodeToString(sum)
+	return s == sha1Msg
+}
+
 func (cfg *MavenConfig) execJarUpload() {
 	count := 0
 	filepath.Walk(cfg.LocalRepoDir, func(path string, info os.FileInfo, e error) error {
@@ -56,6 +98,12 @@ func (cfg *MavenConfig) execJarUpload() {
 			!strings.HasSuffix(lowName, "-sources.jar") &&
 			!strings.HasSuffix(lowName, "-snapshot.jar") &&
 			!strings.HasSuffix(lowName, "-javadoc.jar") {
+
+			if !verify(path) {
+				fmt.Println("jar文件sha1校验失败")
+				return nil
+			}
+
 			pomFilename := strings.Replace(path, ".jar", ".pom", 1)
 			if _, e := os.Stat(pomFilename); os.IsNotExist(e) {
 				return nil
@@ -65,7 +113,8 @@ func (cfg *MavenConfig) execJarUpload() {
 			failOnError(e, "read file error")
 
 			point := &PomPoint{}
-			xml.Unmarshal(buf, point)
+			e = xml.Unmarshal(buf, point)
+			failOnError(e, "read file error")
 
 			g, a, v := "", "", ""
 			if len(point.ArtifactId) == 0 {
