@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	_ "github.com/qodrorid/godaemon"
 	"lito/web"
 	"log"
 	"net/http"
