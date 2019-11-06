@@ -35,7 +35,6 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 		Content: r.PostFormValue("content"),
 	}
 
-
 	//fields := strings.Fields(content)
 	//exec.Command(fields[0], fields[1:]...)
 	var cmd *exec.Cmd
@@ -54,11 +53,14 @@ func execHandler(w http.ResponseWriter, r *http.Request) {
 		if e != nil {
 			cfg.Result = e.Error()
 		}
-		tmpScriptFile.WriteString(script)
-		if isWin {
-			cmd = exec.Command("cmd", tmpScriptFile.Name())
-		} else {
-			cmd = exec.Command("sh", tmpScriptFile.Name())
+		if tmpScriptFile != nil {
+			_, e = tmpScriptFile.WriteString(script)
+			failOnError(e, "write tmp shell file error")
+			if isWin {
+				cmd = exec.Command("cmd", tmpScriptFile.Name())
+			} else {
+				cmd = exec.Command("sh", tmpScriptFile.Name())
+			}
 		}
 	}
 

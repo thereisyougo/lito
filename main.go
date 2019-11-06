@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/gorilla/websocket"
 	"lito/web"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 )
 
 var localDir = flag.String("dir", ".", "static file server address")
@@ -30,7 +32,8 @@ func init() {
 		}
 		//fmt.Printf("%v", args)
 		cmd := exec.Command(os.Args[0], args...)
-		cmd.Start()
+		e := cmd.Start()
+		web.FailOnError(e, "run background failed")
 		fmt.Println("[PID]", cmd.Process.Pid)
 		os.Exit(0)
 	}
@@ -43,9 +46,13 @@ func main() {
 	}
 
 	msgch := make(chan string)
+	clientlist := web.Cmap{
+		M: make(map[string]*websocket.Conn),
+		L: sync.RWMutex{},
+	}
 
 	http.Handle("/", http.RedirectHandler("/upload", http.StatusFound))
-	http.HandleFunc("/ws", web.WsHandler(msgch))
+	http.HandleFunc("/ws", web.WsHandler(&msgch, &clientlist))
 	http.HandleFunc("/send", web.AmqpHanler())
 	http.HandleFunc("/exec", web.ExecHandler())
 	http.HandleFunc("/upload", web.UploadFileHanler())
