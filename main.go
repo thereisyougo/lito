@@ -25,7 +25,7 @@ func init() {
 		args := os.Args[1:]
 		i := 0
 		for ; i < len(args); i++ {
-			if args[i] == "-d" {
+			if args[i] == "-d" || args[i] == "--d" {
 				args = append(args[:i], args[i+1:]...)
 				break
 			}
