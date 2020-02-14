@@ -18,6 +18,8 @@ import (
 	"text/template"
 	"time"
 	"unsafe"
+
+	"golang.org/x/net/html/charset"
 )
 
 type PomPoint struct {
@@ -43,11 +45,11 @@ type SearchItem struct {
 }
 
 type MavenConfig struct {
-	LocalRepoDir, MavenServerHost, RepoName, Username, Secret, ReqHost string
-	Msgch                                                              *chan string
+	BaseContext, LocalRepoDir, MavenServerHost, RepoName, Username, Secret, ReqHost string
+	Msgch                                                                           *chan string
 }
 
-func verify(fileName string) bool  {
+func verify(fileName string) bool {
 	var sha1Msg string
 	//fileName := "D:/.m2/repository/org/springframework/batch/spring-batch-core/3.0.10.RELEASE/spring-batch-core-3.0.10.RELEASE.jar"
 	fh, e := os.Open(fileName)
@@ -71,6 +73,7 @@ func verify(fileName string) bool  {
 		}
 		sha1Msg = *(*string)(unsafe.Pointer(&buf))
 		sha1Msg = strings.TrimSpace(sha1Msg)
+		sha1Msg = sha1Msg[:40]
 	} else {
 		fmt.Println(fileName, "不存在sha1文件")
 		return true
@@ -100,7 +103,7 @@ func (cfg *MavenConfig) execJarUpload() {
 			!strings.HasSuffix(lowName, "-javadoc.jar") {
 
 			if !verify(path) {
-				fmt.Println("jar文件sha1校验失败")
+				fmt.Println(path, "jar文件sha1校验失败")
 				return nil
 			}
 
@@ -110,15 +113,19 @@ func (cfg *MavenConfig) execJarUpload() {
 			}
 
 			buf, e := ioutil.ReadFile(pomFilename)
-			failOnError(e, "read file error")
+			failOnError(e, "read file error "+path)
 
 			point := &PomPoint{}
-			e = xml.Unmarshal(buf, point)
-			failOnError(e, "read file error")
+			decoder := xml.NewDecoder(bytes.NewBuffer(buf))
+			decoder.CharsetReader = charset.NewReaderLabel
+			e = decoder.Decode(point)
+
+			//e = xml.Unmarshal(buf, point)
+			failOnError(e, "unmarshal file error "+path)
 
 			g, a, v := "", "", ""
 			if len(point.ArtifactId) == 0 {
-				fmt.Println("pom.xml artifactId is empty")
+				fmt.Println("pom.xml artifactId is empty " + path)
 				return nil
 			} else {
 				g, a, v = point.GroupId, point.ArtifactId, point.Version
@@ -142,9 +149,9 @@ func (cfg *MavenConfig) execJarUpload() {
 }
 
 const (
-	urlStrTmp       string = `http://{{.addr}}/service/rest/v1/components?repository={{.repo}}`
-	searchUrlStrTmp string = `http://{{.addr}}/service/rest/v1/search?repository={{.repo}}&maven.groupId={{.g}}&maven.artifactId={{.a}}&maven.baseVersion={{.v}}&maven.extension=jar`
-	deleteUrlStrTmp string = `http://{{.addr}}/service/rest/v1/components/{{.id}}`
+	urlStrTmp       string = `http://{{.addr}}{{.base}}/v1/components?repository={{.repo}}`
+	searchUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/search?repository={{.repo}}&maven.groupId={{.g}}&maven.artifactId={{.a}}&maven.baseVersion={{.v}}&maven.extension=jar`
+	deleteUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/components/{{.id}}`
 )
 
 func (cfg *MavenConfig) request(g, a, v, jarPath string) {
@@ -170,7 +177,7 @@ func (cfg *MavenConfig) request(g, a, v, jarPath string) {
 	e := writer.Close()
 	failOnError(e, "close body buffer error")
 
-	urlStr := parseStr(urlStrTmp, &map[string]string{
+	urlStr := cfg.parseStr(urlStrTmp, &map[string]string{
 		"repo": cfg.RepoName,
 		"addr": cfg.MavenServerHost,
 	})
@@ -191,13 +198,14 @@ func (cfg *MavenConfig) request(g, a, v, jarPath string) {
 }
 
 func (cfg *MavenConfig) removeComponent(groupid, artifactid, version string) {
-	searchUrl := parseStr(searchUrlStrTmp, &map[string]string{
+	searchUrl := cfg.parseStr(searchUrlStrTmp, &map[string]string{
 		"g":    groupid,
 		"a":    artifactid,
 		"v":    version,
 		"repo": cfg.RepoName,
 		"addr": cfg.MavenServerHost,
 	})
+	// fmt.Println(searchUrl)
 	resp, e := http.Get(searchUrl)
 	if resp == nil {
 		return
@@ -212,7 +220,7 @@ func (cfg *MavenConfig) removeComponent(groupid, artifactid, version string) {
 	e = json.Unmarshal(searchResopnseBuf, searchResult)
 	failOnError(e, "search response read failed")
 	if len(searchResult.Items) > 0 && len(searchResult.Items[0].Id) > 0 {
-		deleteUrl := parseStr(deleteUrlStrTmp, &map[string]string{
+		deleteUrl := cfg.parseStr(deleteUrlStrTmp, &map[string]string{
 			"id":   searchResult.Items[0].Id,
 			"addr": cfg.MavenServerHost,
 		})
@@ -241,10 +249,11 @@ func (cfg *MavenConfig) removeComponent(groupid, artifactid, version string) {
 	}
 }
 
-func parseStr(templateStr string, data *map[string]string) string {
+func (cfg *MavenConfig) parseStr(templateStr string, data *map[string]string) string {
 	exp, e := template.New(time.Now().String()).Parse(templateStr)
 	failOnError(e, "tempate load failed")
 	buf := &bytes.Buffer{}
+	(*data)["base"] = cfg.BaseContext
 	e = exp.Execute(buf, *data)
 	failOnError(e, "tempate execute failed")
 	return buf.String()
@@ -304,6 +313,7 @@ func jarConfigWelcome(w http.ResponseWriter, r *http.Request, data *MavenConfig)
 
 func jarHandler(w http.ResponseWriter, r *http.Request, msgch *chan string) {
 	mvnCfg := &MavenConfig{
+		BaseContext:     r.PostFormValue("BaseContext"),
 		LocalRepoDir:    r.PostFormValue("LocalRepoDir"),
 		MavenServerHost: r.PostFormValue("MavenServerHost"),
 		RepoName:        r.PostFormValue("RepoName"),
@@ -329,8 +339,9 @@ func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 		switch method {
 		case "GET":
 			data := &MavenConfig{
+				BaseContext:     "/service/rest",
 				LocalRepoDir:    "D:\\.m2",
-				MavenServerHost: "localhost:8081",
+				MavenServerHost: "localhost:32769",
 				RepoName:        "maven-releases",
 				Username:        "admin",
 				Secret:          "admin123",
@@ -340,5 +351,5 @@ func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 		case "POST":
 			jarHandler(w, r, msgch)
 		}
-	});
+	})
 }

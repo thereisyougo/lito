@@ -21,6 +21,7 @@
 <body>
 <div id="info">
     <form name="myform">
+        <label for="BaseContext">NEXUS上下文</label><input type="text" value="{{.BaseContext}}" name="BaseContext"><br>
         <label for="LocalRepoDir">本地仓库地址:</label><input type="text" value="{{.LocalRepoDir}}" name="LocalRepoDir"><br>
         <label for="MavenServerHost">私服地址及端口:</label><input type="text" value="{{.MavenServerHost}}" name="MavenServerHost"><br>
         <label for="RepoName">私服上的仓库名:</label><input type="text" value="{{.RepoName}}" name="RepoName"><br>
