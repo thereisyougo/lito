@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,6 +29,13 @@ type PomPoint struct {
 	ArtifactId string      `xml:"artifactId"`
 	Version    string      `xml:"version"`
 	Parent     ParentPoint `xml:"parent"`
+}
+
+type Point struct {
+	GroupId    string `default: ""`
+	ArtifactId string `default: ""`
+	Version    string `default: ""`
+	Extension  string `"default: "jar"`
 }
 
 type ParentPoint struct {
@@ -96,69 +104,115 @@ func (cfg *MavenConfig) execJarUpload() {
 			fmt.Printf("prevent panic by handling failure accessing a path %q: %v\n", path, e)
 			return e
 		}
+		// filename
 		lowName := strings.ToLower(info.Name())
-		if !info.IsDir() && strings.HasSuffix(lowName, ".jar") &&
-			!strings.HasSuffix(lowName, "-sources.jar") &&
-			!strings.HasSuffix(lowName, "-snapshot.jar") &&
-			!strings.HasSuffix(lowName, "-javadoc.jar") {
-
-			if !verify(path) {
-				fmt.Println(path, "jar文件sha1校验失败")
-				return nil
-			}
-
-			pomFilename := strings.Replace(path, ".jar", ".pom", 1)
-			if _, e := os.Stat(pomFilename); os.IsNotExist(e) {
-				return nil
-			}
-
-			buf, e := ioutil.ReadFile(pomFilename)
-			failOnError(e, "read file error "+path)
-
-			point := &PomPoint{}
-			decoder := xml.NewDecoder(bytes.NewBuffer(buf))
-			decoder.CharsetReader = charset.NewReaderLabel
-			e = decoder.Decode(point)
-
-			//e = xml.Unmarshal(buf, point)
-			failOnError(e, "unmarshal file error "+path)
-
-			g, a, v := "", "", ""
-			if len(point.ArtifactId) == 0 {
-				fmt.Println("pom.xml artifactId is empty " + path)
-				return nil
-			} else {
-				g, a, v = point.GroupId, point.ArtifactId, point.Version
-			}
-			if len(point.GroupId) == 0 {
-				g = point.Parent.GroupId
-			}
-			if len(point.Version) == 0 {
-				v = point.Parent.Version
-			}
-
-			if len(g) != 0 && len(a) != 0 && len(v) != 0 {
-				cfg.request(g, a, v, path)
-			}
-			count++
+		err, done := cfg.jarFileHandler(&info, lowName, path, &count)
+		if done {
+			return err
 		}
+		err, done = cfg.parentFileHandler(&info, lowName, path, &count)
+		if done {
+			return err
+		}
+
 		return nil
 	})
 
 	*cfg.Msgch <- fmt.Sprint("count: ", count)
 }
 
+// 对于单独的父POM文件进行处理
+func (cfg *MavenConfig) parentFileHandler(info *os.FileInfo, lowName string, path string, count *int) (error, bool) {
+	if !(*info).IsDir() && strings.Contains(lowName, "-parent-") && strings.HasSuffix(lowName, ".pom") {
+		if !verify(path) {
+			fmt.Println(path, "pom文件sha1校验失败")
+			return nil, true
+		}
+
+		point, err, nodone := cfg.getCoordinate(path)
+		if nodone {
+			return err, nodone
+		}
+
+		if len(point.GroupId) != 0 && len(point.ArtifactId) != 0 && len(point.Version) != 0 {
+			cfg.singleRequest(point, path)
+		}
+		*count++
+	}
+	return nil, false
+}
+
+func (cfg *MavenConfig) jarFileHandler(info *os.FileInfo, lowName string, path string, count *int) (error, bool) {
+	if !(*info).IsDir() && strings.HasSuffix(lowName, ".jar") &&
+		!strings.HasSuffix(lowName, "-sources.jar") &&
+		!strings.HasSuffix(lowName, "-snapshot.jar") &&
+		!strings.HasSuffix(lowName, "-javadoc.jar") {
+
+		if !verify(path) {
+			fmt.Println(path, "jar文件sha1校验失败")
+			return nil, true
+		}
+
+		pomFilename := strings.Replace(path, ".jar", ".pom", 1)
+		if _, e := os.Stat(pomFilename); os.IsNotExist(e) {
+			return nil, true
+		}
+
+		point, err, nodone := cfg.getCoordinate(pomFilename)
+		if nodone {
+			return err, nodone
+		}
+
+		if len(point.GroupId) != 0 && len(point.ArtifactId) != 0 && len(point.Version) != 0 {
+			cfg.request(point, path)
+		}
+		*count++
+	}
+	return nil, false
+}
+
+func (cfg *MavenConfig) getCoordinate(pomFilename string) (*Point, error, bool) {
+	buf, e := ioutil.ReadFile(pomFilename)
+	failOnError(e, "read file error "+pomFilename)
+
+	point := &PomPoint{}
+	decoder := xml.NewDecoder(bytes.NewBuffer(buf))
+	decoder.CharsetReader = charset.NewReaderLabel
+	e = decoder.Decode(point)
+
+	//e = xml.Unmarshal(buf, point)
+	failOnError(e, "unmarshal file error "+pomFilename)
+
+	resolvedPoint := Point{}
+	if len(point.ArtifactId) == 0 {
+		//fmt.Println("pom.xml artifactId is empty " + path)
+		return &resolvedPoint, errors.New("pom.xml artifactId is empty" + pomFilename), true
+	} else {
+		resolvedPoint.GroupId = point.GroupId
+		resolvedPoint.ArtifactId = point.ArtifactId
+		resolvedPoint.Version = point.Version
+		//g, a, v = point.GroupId, point.ArtifactId, point.Version
+	}
+	if len(point.GroupId) == 0 {
+		resolvedPoint.GroupId = point.Parent.GroupId
+	}
+	if len(point.Version) == 0 {
+		resolvedPoint.Version = point.Parent.Version
+	}
+	return &resolvedPoint, nil, false
+}
+
 const (
 	urlStrTmp       string = `http://{{.addr}}{{.base}}/v1/components?repository={{.repo}}`
-	searchUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/search?repository={{.repo}}&maven.groupId={{.g}}&maven.artifactId={{.a}}&maven.baseVersion={{.v}}&maven.extension=jar`
+	searchUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/search?repository={{.repo}}&maven.groupId={{.g}}&maven.artifactId={{.a}}&maven.baseVersion={{.v}}&maven.extension={{.ext}}`
 	deleteUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/components/{{.id}}`
 )
 
-func (cfg *MavenConfig) request(g, a, v, jarPath string) {
+func (cfg *MavenConfig) singleRequest(point *Point, pomPath string) {
 	params := map[string]string{
-		"maven2.groupId":      strings.TrimSpace(g),
-		"maven2.artifactId":   strings.TrimSpace(a),
-		"maven2.version":      strings.TrimSpace(v),
+		"maven2.groupId":      strings.TrimSpace(point.GroupId),
+		"maven2.artifactId":   strings.TrimSpace(point.ArtifactId),
+		"maven2.version":      strings.TrimSpace(point.Version),
 		"maven2.generate-pom": "false",
 	}
 
@@ -168,7 +222,32 @@ func (cfg *MavenConfig) request(g, a, v, jarPath string) {
 		writer.WriteField(k, v)
 	}
 
-	cfg.removeComponent(g, a, v)
+	point.Extension = "pom"
+	cfg.removeComponent(point)
+
+	cfg.uploadSinglePom(pomPath, writer)
+
+	e := writer.Close()
+	failOnError(e, "close body buffer error")
+
+	cfg.httpClientRequest(body, writer)
+}
+
+func (cfg *MavenConfig) request(point *Point, jarPath string) {
+	params := map[string]string{
+		"maven2.groupId":      strings.TrimSpace(point.GroupId),
+		"maven2.artifactId":   strings.TrimSpace(point.ArtifactId),
+		"maven2.version":      strings.TrimSpace(point.Version),
+		"maven2.generate-pom": "false",
+	}
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	for k, v := range params {
+		writer.WriteField(k, v)
+	}
+
+	cfg.removeComponent(point)
 
 	cfg.uploadJar(jarPath, writer)
 	cfg.uploadPom(jarPath, writer)
@@ -177,6 +256,10 @@ func (cfg *MavenConfig) request(g, a, v, jarPath string) {
 	e := writer.Close()
 	failOnError(e, "close body buffer error")
 
+	cfg.httpClientRequest(body, writer)
+}
+
+func (cfg *MavenConfig) httpClientRequest(body *bytes.Buffer, writer *multipart.Writer) {
 	urlStr := cfg.parseStr(urlStrTmp, &map[string]string{
 		"repo": cfg.RepoName,
 		"addr": cfg.MavenServerHost,
@@ -197,11 +280,12 @@ func (cfg *MavenConfig) request(g, a, v, jarPath string) {
 	*cfg.Msgch <- buf.String()
 }
 
-func (cfg *MavenConfig) removeComponent(groupid, artifactid, version string) {
+func (cfg *MavenConfig) removeComponent(point *Point) {
 	searchUrl := cfg.parseStr(searchUrlStrTmp, &map[string]string{
-		"g":    groupid,
-		"a":    artifactid,
-		"v":    version,
+		"g":    point.GroupId,
+		"a":    point.ArtifactId,
+		"v":    point.Version,
+		"ext":  point.Extension,
 		"repo": cfg.RepoName,
 		"addr": cfg.MavenServerHost,
 	})
@@ -269,6 +353,19 @@ func (cfg *MavenConfig) uploadJar(jarPath string, writer *multipart.Writer) {
 	failOnError(e, "copy jar file to form-data error")
 
 	writer.WriteField("maven2.asset1.extension", "jar")
+}
+
+func (cfg *MavenConfig) uploadSinglePom(pomPath string, writer *multipart.Writer) {
+	pomFile, e := os.Open(pomPath)
+	failOnError(e, "open pom file error")
+	defer pomFile.Close()
+	part, e := writer.CreateFormFile("maven2.asset1", pomPath)
+	failOnError(e, "create form file header error")
+	_, e = io.Copy(part, pomFile)
+	failOnError(e, "copy pom file to form-data error")
+
+	//writer.WriteField("maven2.asset2.classifier", "sources")
+	writer.WriteField("maven2.asset1.extension", "pom")
 }
 
 func (cfg *MavenConfig) uploadPom(jarPath string, writer *multipart.Writer) {
@@ -341,7 +438,7 @@ func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 			data := &MavenConfig{
 				BaseContext:     "/service/rest",
 				LocalRepoDir:    "D:\\.m2",
-				MavenServerHost: "localhost:32769",
+				MavenServerHost: "localhost:8081",
 				RepoName:        "maven-releases",
 				Username:        "admin",
 				Secret:          "admin123",
