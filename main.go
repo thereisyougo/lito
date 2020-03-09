@@ -51,7 +51,7 @@ func main() {
 		L: sync.RWMutex{},
 	}
 
-	http.Handle("/", http.RedirectHandler("/jar", http.StatusFound))
+	http.Handle("/", http.RedirectHandler("/upload", http.StatusFound))
 	http.HandleFunc("/ws", web.WsHandler(&msgch, &clientlist))
 	http.HandleFunc("/send", web.AmqpHanler())
 	http.HandleFunc("/exec", web.ExecHandler())

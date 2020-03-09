@@ -135,6 +135,7 @@ func (cfg *MavenConfig) parentFileHandler(info *os.FileInfo, lowName string, pat
 		}
 
 		if len(point.GroupId) != 0 && len(point.ArtifactId) != 0 && len(point.Version) != 0 {
+			*cfg.Msgch <- fmt.Sprintf("{%s:%s:%s}", point.GroupId, point.ArtifactId, point.Version)
 			cfg.singleRequest(point, path)
 		}
 		*count++
@@ -164,6 +165,7 @@ func (cfg *MavenConfig) jarFileHandler(info *os.FileInfo, lowName string, path s
 		}
 
 		if len(point.GroupId) != 0 && len(point.ArtifactId) != 0 && len(point.Version) != 0 {
+			*cfg.Msgch <- fmt.Sprintf("{%s:%s:%s}", point.GroupId, point.ArtifactId, point.Version)
 			cfg.request(point, path)
 		}
 		*count++
@@ -444,6 +446,19 @@ func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 				Secret:          "admin123",
 				ReqHost:         r.Host,
 			}
+			/*
+						data := &MavenConfig{
+					BaseContext:     "/nexus/service/rest",
+					LocalRepoDir:    "D:\\.m2",
+					MavenServerHost: "172.1.1.16:8081",
+					RepoName:        "maven-releases",
+					Username:        "Efy",
+					Secret:          "oookkk",
+					ReqHost:         r.Host,
+				}
+
+
+			*/
 			jarConfigWelcome(w, r, data)
 		case "POST":
 			jarHandler(w, r, msgch)

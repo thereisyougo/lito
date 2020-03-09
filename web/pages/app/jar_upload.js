@@ -1,10 +1,22 @@
+function $(selector) {
+    return document.querySelector(selector);
+}
+
+function println(msg) {
+    console.info(msg);
+    var p = document.createElement('p');
+    p.appendChild(document.createTextNode(msg));
+    $('#response').appendChild(p);
+    p.scrollIntoView()
+}
+
 function sendmsg(self, evt) {
     fetch('/jar', {
         method: 'POST',
         body: new FormData(document.myform),
         cache: "no-cache"
     }).then(b => b.text()).then(r => {
-        console.info("msg from server:" + r)
+        println("msg from server:" + r)
     });
 }
 
@@ -15,17 +27,17 @@ window.addEventListener('DOMContentLoaded', function () {
 
     ws = new WebSocket(`ws://${req_host}/ws`);
     ws.onopen = function(evt) {
-        console.info("OPEN");
+        println("OPEN");
     }
     ws.onclose = function(evt) {
-        console.info("CLOSE");
+        println("CLOSE");
         ws = null;
     }
     ws.onmessage = function(evt) {
-        console.info(evt.data);
+        println(evt.data);
     }
     ws.onerror = function(evt) {
-        console.info("ERROR: " + evt.data);
+        println("ERROR: " + evt.data);
     }
 
 });
