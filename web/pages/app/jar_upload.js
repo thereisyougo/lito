@@ -20,10 +20,23 @@ function sendmsg(self, evt) {
     });
 }
 
+function cleanmsg(self, evt) {
+    $('#message').value = '';
+}
+
 let ws;
 
+function trip() {
+    let val = $('#message').value;
+    if (val !== '') {
+        ws.send(val);
+    }
+}
+
 window.addEventListener('DOMContentLoaded', function () {
-    document.getElementById('btnSend').addEventListener('click', sendmsg);
+    $('#btnSend').addEventListener('click', sendmsg);
+    $('#sendMsg').addEventListener('click', trip);
+    $('#cleanMsg').addEventListener('click', cleanmsg);
 
     ws = new WebSocket(`ws://${req_host}/ws`);
     ws.onopen = function(evt) {
@@ -42,5 +55,7 @@ window.addEventListener('DOMContentLoaded', function () {
 
 });
 window.addEventListener('beforeunload', function () {
-    document.getElementById('btnSend').removeEventListener('click', sendmsg);
+    $('#btnSend').removeEventListener('click', sendmsg);
+    $('#sendMsg').removeEventListener('click', trip)
+    $('#cleanMsg').removeEventListener('click', cleanmsg);
 });

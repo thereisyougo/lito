@@ -18,13 +18,35 @@
             height: 10rem;
             margin: 1rem;
         }
+        #message, #sendMsg, #cleanMsg {
+            margin-left: .2rem;
+            height: 1.5rem;
+            /* bottom: calc(100vh - 14rem); */
+        }
+        /* #sendMsg {
+            height: 1.7rem;
+            width: 3rem;
+            left: 20.5rem;
+        }
+        #cleanMsg {
+            height: 1.7rem;
+            width: 4rem;
+            left: 24rem;
+        } */
+        #message {
+            width: 20rem;
+        }
         #response {
+            color: white;
+            background: #58a;
             display: block;
             margin: 1rem 1rem 0 0;
             width: 100%;
             box-sizing: border-box;
-            height: calc(100vh - 12rem);
+            height: calc(100vh - 14rem);
             overflow: auto;
+            position: absolute;
+            bottom: 0;
         }
     </style>
     <script>
@@ -42,7 +64,10 @@
         <label for="Username">用户名:</label><input type="text" value="{{.Username}}" name="Username"><br>
         <label for="Secret">密码:</label><input type="password" value="{{.Secret}}" name="Secret"><br>
     </form>
-    <button id="btnSend">执行</button>
+    <button id="btnSend">执行</button><br>
+</div>
+<div class="communication">
+    <input id="message"><button id="sendMsg">SEND</button><button id="cleanMsg">CLEAN</button>
 </div>
 <div id="response"></div>
 </body>
