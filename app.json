@@ -1,0 +1,8 @@
+{
+  "BaseContext": "/rest",
+  "LocalRepoDir": "D:\\.m2",
+  "MavenServerHost": "localhost:8085",
+  "RepoName": "maven-releases",
+  "Username": "admin",
+  "Secret": "aaa"
+}

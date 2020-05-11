@@ -267,8 +267,8 @@ func (cfg *MavenConfig) httpClientRequest(body *bytes.Buffer, writer *multipart.
 		"addr": cfg.MavenServerHost,
 	})
 	req, e := http.NewRequest("POST", urlStr, body)
-	req.SetBasicAuth(cfg.Username, cfg.Secret)
 	failOnError(e, "http request failed")
+	req.SetBasicAuth(cfg.Username, cfg.Secret)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	//client := &http.Client{}
@@ -401,7 +401,7 @@ func (cfg *MavenConfig) uploadSource(jarPath string, writer *multipart.Writer) {
 	}
 }
 
-func jarConfigWelcome(w http.ResponseWriter, r *http.Request, data *MavenConfig) {
+func jarConfigWelcome(w http.ResponseWriter, _ *http.Request, data *MavenConfig) {
 	if tmp, e := template.ParseFiles("web/pages/jar_upload.html"); e == nil {
 		e := tmp.Execute(w, data)
 		FailOnError(e, "template render error")
@@ -445,6 +445,15 @@ func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 				Username:        "admin",
 				Secret:          "admin123",
 				ReqHost:         r.Host,
+			}
+
+			if _, err := os.Stat("app.json"); err == nil {
+				buf, _ := ioutil.ReadFile("app.json")
+
+				if err = json.Unmarshal(buf, data); err != nil {
+					log.Println("app.json parse failed")
+				}
+				data.ReqHost = r.Host
 			}
 			/*
 						data := &MavenConfig{
