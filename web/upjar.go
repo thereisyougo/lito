@@ -121,9 +121,24 @@ func (cfg *MavenConfig) execJarUpload() {
 	*cfg.Msgch <- fmt.Sprint("count: ", count)
 }
 
+func includeJar(path string) bool {
+	dir := filepath.Dir(path)
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		log.Println(err)
+	}
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".jar") {
+			return true
+		}
+	}
+	return false
+}
+
 // 对于单独的父POM文件进行处理
 func (cfg *MavenConfig) parentFileHandler(info *os.FileInfo, lowName string, path string, count *int) (error, bool) {
-	if !(*info).IsDir() && strings.Contains(lowName, "-parent-") && strings.HasSuffix(lowName, ".pom") {
+	if !(*info).IsDir() && !includeJar(path) && strings.HasSuffix(lowName, ".pom") {
 		if !verify(path) {
 			fmt.Println(path, "pom文件sha1校验失败")
 			return nil, true
