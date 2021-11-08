@@ -220,9 +220,9 @@ func (cfg *MavenConfig) getCoordinate(pomFilename string) (*Point, error, bool) 
 }
 
 const (
-	urlStrTmp       string = `http://{{.addr}}{{.base}}/v1/components?repository={{.repo}}`
-	searchUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/search?repository={{.repo}}&maven.groupId={{.g}}&maven.artifactId={{.a}}&maven.baseVersion={{.v}}&maven.extension={{.ext}}`
-	deleteUrlStrTmp string = `http://{{.addr}}{{.base}}/v1/components/{{.id}}`
+	urlStrTmp       string = `http://{{.addr}}{{.base}}/components?repository={{.repo}}`
+	searchUrlStrTmp string = `http://{{.addr}}{{.base}}/search?repository={{.repo}}&maven.groupId={{.g}}&maven.artifactId={{.a}}&maven.baseVersion={{.v}}&maven.extension={{.ext}}`
+	deleteUrlStrTmp string = `http://{{.addr}}{{.base}}/components/{{.id}}`
 )
 
 func (cfg *MavenConfig) singleRequest(point *Point, pomPath string) {
@@ -453,9 +453,9 @@ func UploadJarHanler(msgch *chan string) http.HandlerFunc {
 		switch method {
 		case "GET":
 			data := &MavenConfig{
-				BaseContext:     "/service/rest",
+				BaseContext:     "/service/rest/v1",
 				LocalRepoDir:    "D:\\.m2",
-				MavenServerHost: "localhost:8081",
+				MavenServerHost: "127.0.0.1:8081",
 				RepoName:        "maven-releases",
 				Username:        "admin",
 				Secret:          "admin123",

@@ -59,6 +59,13 @@ func main() {
 	http.HandleFunc("/jar", web.UploadJarHanler(&msgch))
 	http.Handle("/files/", http.StripPrefix("/files", http.FileServer(http.Dir(*localDir))))
 	log.Printf("Server started on localhost:%v", *port)
+
+	go func() {
+		if err := exec.Command("cmd", fmt.Sprintf("/c start http://localhost:%v", *port)).Start(); err != nil {
+			log.Println("Browser open failed!")
+		}
+	}()
+
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(*port), nil))
 
 }
