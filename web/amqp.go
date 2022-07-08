@@ -28,7 +28,7 @@ func FailOnError(err error, msg string) {
 type Msg struct {
 	BarCode string `json:"barCode"`
 	Sign    string `json:"sign"`
-	Time string `json:"time"`
+	Time    string `json:"time"`
 }
 
 type QueueConfig struct {
@@ -72,14 +72,14 @@ func sendMsg(ls *list.List, c *QueueConfig) {
 	}
 }
 
-func amqpindex(w http.ResponseWriter, r *http.Request, q *QueueConfig)  {
+func amqpindex(w http.ResponseWriter, r *http.Request, q *QueueConfig) {
 
 	//userAgent := r.Header.Get("User-Agent")
 	//t := AmqpTempate
 	//if strings.Contains(userAgent, "MSIE") {
 	//	t = WebTemplate
 	//}
-	renderPage(w, "web/pages/send.html", *q);
+	renderPage(w, "web/pages/send.html", *q)
 
 }
 
@@ -95,7 +95,7 @@ func renderPage(w http.ResponseWriter, pagePath string, q interface{}) {
 	}
 }
 
-func msgHandler(w http.ResponseWriter, r *http.Request)  {
+func msgHandler(w http.ResponseWriter, r *http.Request) {
 	codes := r.PostFormValue("codes")
 	typ := r.PostFormValue("type")
 
@@ -125,7 +125,7 @@ func msgHandler(w http.ResponseWriter, r *http.Request)  {
 					//for i := 1; i < 10000; i++ {
 					ls.PushBack(Msg{
 						BarCode: actual,
-						Sign: typ,
+						Sign:    typ,
 					})
 					//}
 				}
@@ -137,7 +137,6 @@ func msgHandler(w http.ResponseWriter, r *http.Request)  {
 		}
 	}
 
-
 	buf, e := json.Marshal(struct {
 		Success bool `json:"success"`
 	}{true})
@@ -146,7 +145,6 @@ func msgHandler(w http.ResponseWriter, r *http.Request)  {
 	w.Write(buf)
 }
 
-
 func AmqpHanler() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		method := r.Method
@@ -154,17 +152,17 @@ func AmqpHanler() http.HandlerFunc {
 		switch method {
 		case "GET":
 			q := &QueueConfig{
-				Username:"aas",
-				Password:"aas123",
-				Host: "10.17.2.113",
-				Port: "5672",
-				VirtualHost: "netloan",
+				Username:     "aas",
+				Password:     "aas123",
+				Host:         "10.17.2.113",
+				Port:         "5672",
+				VirtualHost:  "netloan",
 				ExchangeName: "netloan-entrance",
-				RouteKey: "#",
+				RouteKey:     "#",
 			}
 			amqpindex(w, r, q)
 		case "POST":
 			msgHandler(w, r)
 		}
-	});
+	})
 }
